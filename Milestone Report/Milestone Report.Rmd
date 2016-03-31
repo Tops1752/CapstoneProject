@@ -1,0 +1,146 @@
+---
+title: "Milestone Preliminary Report"
+author: "Tops1752"
+date: "Sunday, March 20, 2016"
+output: html_document
+---
+
+# Summary
+This report is to disply and explain the exploratory analysis and the goals for the eventual app and algorithm, which inclludes:
+
+-- Data download 
+
+-- Basic data summary
+
+-- Data exploratory analysis and interesting findings
+
+-- Next steps for prediction algorithm and shniy app
+
+
+## Getting the Data
+
+The corpora are collected from publicly available sources by a web crawler. The crawler checks for language, so as to mainly get texts consisting of the desired language. In this project, we are going to use en_US data, including sources from Twitter, Blogs and News.
+Download the data from Coursera site and set the direction to where the data is saved.
+
+```{r,echo=FALSE}
+Dir <- "C:/Users/bzou/Documents/R/CapstoneProject/"
+setwd(Dir)
+```
+```{r,eval= TRUE,warning=FALSE}
+## Read data
+datTwitter <- readLines("final/en_US/en_US.twitter.txt")
+datBlog <- readLines("final/en_US/en_US.blogs.txt")
+datNews <- readLines("final/en_US/en_US.news.txt")
+```
+
+The table below shows a brief summary of the data:
+
+```{r, echo=FALSE,warning=FALSE,cache=TRUE}
+dfSum <- data.frame(Data = c("datTwitter","datBlog","datNews"))
+dfSum$Source <- c("final/en_US/en_US.twitter.txt","final/en_US/en_US.blogs.txt","final/en_US/en_US.news.txt")
+dfSum$Size.MB <- file.info(dfSum$Source)$size/1024/1024
+dfSum$LineCount <- sapply(list(datTwitter,datBlog,datNews),length)
+
+wordCount <- function (x){
+    eachCount <- sapply(gregexpr("\\S+", x), length)
+    return(sum(eachCount))
+}
+
+dfSum$WordCount <- sapply(list(datTwitter,datBlog,datNews),wordCount)
+
+library(knitr)
+kable(dfSum)
+```
+
+
+## Data Cleaning
+
+Use "tm" package to process and clean the data by transforming every word to lower case, removing punctuations and stripping out extra whitespace.
+
+```{r,echo=FALSE,warning=FALSE}
+## the original data is too big to process. Create the demo data to generate the report
+datTwitter <- datTwitter[1:length(datTwitter)/100]
+datBlog <- datTwitter[1:length(datBlog)/100]
+datNews <- datTwitter[1:length(datNews)/100]
+```
+
+```{r,warning=FALSE}
+library(tm)
+
+text <- paste(datTwitter,datBlog,datNews, collapse = " ")
+text.source <- VectorSource(text)
+
+corpus <- Corpus(text.source)
+corpus <- tm_map(corpus, content_transformer(tolower))
+corpus <- tm_map(corpus, removePunctuation)
+corpus <- tm_map(corpus, stripWhitespace)
+
+```
+
+
+## Data Exploratory
+
+The first step is to review the instance and frequency of words.
+
+```{r,warning=FALSE}
+dtm <- DocumentTermMatrix(corpus)
+dtm2 <- as.matrix(dtm)
+frequency <- colSums(dtm2)
+frequency <- sort(frequency, decreasing=TRUE)
+
+dfFreq <- data.frame(words = names(frequency))
+dfFreq$freq <- frequency
+dfFreq$per <- frequency/sum(frequency)
+dfFreq$cumsum <- cumsum(dfFreq$per)
+dfFreq$wordPer <- 1/length(dfFreq$words)
+dfFreq$cumWordPer <- cumsum(dfFreq$wordPer)
+
+```
+
+Plots below are the top 30 words with the highest frequency in each file source.
+
+```{r,warning=FALSE,echo=FALSE}
+library(ggplot2)
+dfFreq$words <- factor(dfFreq$words,levels = rev(dfFreq$words))
+p <- ggplot(dfFreq[1:30,], aes(x=words,y=freq)) + 
+    geom_bar(stat = "identity") +
+    coord_flip() +
+    theme(axis.ticks = element_blank(), axis.text.x = element_blank())+
+    ggtitle("Top 30 Words Frequency")
+p
+```
+
+Check the instance percentage and frequency percentage, it is not suprising to find the 80-20 rules applied here - about 20% of the words cover around 80% of the word instances. 
+
+```{r,warning=FALSE,echo=FALSE}
+cump <- ggplot(dfFreq,aes(x = cumWordPer, y = cumsum)) + 
+    geom_bar(stat = "identity") +
+    coord_flip() + 
+    scale_y_continuous(breaks=seq(0, 1, 0.2)) + 
+    geom_hline(yintercept =0.8,size = 1) + 
+    ggtitle(expression(atop("Word Instances Coverage", atop(italic("*Partial"), ""))))
+
+cump
+```
+
+And the figure below is the wordcloud plot which gives a straightforward view on the word frequency.
+
+```{r,warning=FALSE}
+library(wordcloud)
+words <- names(frequency)
+wordcloud(words[1:30], frequency[1:30],colors=brewer.pal(6, "Dark2"))
+```
+
+
+## Next Step
+
+Next steps to develop the prediction algorithm and shiny app are:
+
+-- Generate the ngram model for prediction
+
+-- Model improvement by optimizing memory required and run time
+
+-- Model testing with test data
+
+-- Shiny app development
+
